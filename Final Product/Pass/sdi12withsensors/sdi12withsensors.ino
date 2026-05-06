@@ -4,8 +4,6 @@
 
 Adafruit_BME280 bme;
 BH1750 lightMeter;
-
-// =============================================
 // SDI-12 Slave Command Parser
 // Arduino Due - UART1 (Serial1)
 // DIRO Pin: 7
@@ -25,7 +23,6 @@ struct SensorData {
   float temperature;  // °C
   float humidity;     // %
   float pressure;     // hPa
-  float gas;          // kOhms
   float lux;          // lx
   bool  ready;        // Has aM! been called?
 } sensorBuffer;
@@ -255,6 +252,7 @@ void setup() {
 // =============================================
 void loop() {
   // Skip RX during lockout window
+  //Serial.println("SDI-12 Slave Parserin loop!!");
   if (millis() < txLockoutUntil) return;
 
   // Poll SDI-12 bus for incoming commands

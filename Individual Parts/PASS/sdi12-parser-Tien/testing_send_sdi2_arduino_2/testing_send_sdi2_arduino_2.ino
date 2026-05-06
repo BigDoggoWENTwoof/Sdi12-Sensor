@@ -11,6 +11,8 @@ void loop() {
   // Forward Serial Monitor input to SDI-12
   if (Serial.available()) {
     String cmd = Serial.readStringUntil('\n');
+    cmd.replace("\r", "");
+    cmd.replace("\n", "");
     cmd.trim();
     digitalWrite(7, LOW);
     delay(15);
@@ -23,13 +25,18 @@ void loop() {
   // Parse incoming SDI-12 commands (terminated by "!")
   if (Serial1.available()) {
     String received = Serial1.readStringUntil('!');
+    for (int i = 0; i < received.length(); i++) {
+  Serial.print(i);
+  Serial.print(": ");
+  Serial.println((int)received[i]);
+}
     received.trim();
 
     Serial.print("Received SDI-12 command: ");
     Serial.println(received);
 
     // Parser logic
-    if (received == "0I") {
+    if (received.startsWith("0I")) {
       Serial.println(">> Identification request");
       // respond with identification string
     } else if (received == "0M") {
