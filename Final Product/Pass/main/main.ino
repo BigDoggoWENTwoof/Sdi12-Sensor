@@ -1,7 +1,7 @@
 #include "SensorReading.h"
 #include "sdi12.h"
 
-#define DIRO_PIN 7
+#define DIRO_PIN 8
 #define MY_ADDRESS '0'
 
 void setup() {

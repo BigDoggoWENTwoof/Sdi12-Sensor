@@ -3,12 +3,17 @@
 
 #define SDI12_BAUD 1200
 #define TX_LOCKOUT_MS 50
+#define R0_STREAM_INTERVAL_MS 1000
 
 static char sensorAddress;
 static int DIRO_PIN;
 static unsigned long txLockoutUntil = 0;
 
 static String rxCmd = "";
+
+// R0 streaming state
+static bool streamR0 = false;
+static unsigned long lastStreamMs = 0;
 
 // ===================== TX =====================
 void sdiSend(String response) {
@@ -83,6 +88,10 @@ String buildLightString() {
 
 // ===================== COMMAND PARSER =====================
 void parseCommand(String cmd) {
+  //at the start of parseCommand(), streamR0 is cleared,
+  // so 0M!, 0D1!, ?, address change, etc. all stop streaming before that command is handled.
+  streamR0 = false;
+
   cmd.trim();
 
   Serial.print("[RX] ");
@@ -143,11 +152,13 @@ void parseCommand(String cmd) {
     return;
   }
 
-  // ---------- ALL DATA ----------
+  // ---------- ALL DATA (continuous until next command) ----------
   if (body == "R0") {
     readSensors();
-
     sdiSend(buildAllString() + "\r\n");
+
+    streamR0 = true;
+    lastStreamMs = millis();
     return;
   }
 
@@ -185,5 +196,12 @@ void sdi12Handle() {
     } else {
       rxCmd += ch;
     }
+  }
+
+  // Stream R0 every R0_STREAM_INTERVAL_MS
+  if (streamR0 && (millis() - lastStreamMs >= R0_STREAM_INTERVAL_MS)) {
+    readSensors();
+    sdiSend(buildAllString() + "\r\n");
+    lastStreamMs = millis();
   }
 }
