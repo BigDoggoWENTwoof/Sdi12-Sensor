@@ -92,7 +92,8 @@ void dashboardUpdate() {
   // Save refresh time
   lastRefreshMs = now;
 
-  // Get latest sensor data
+  // Real-time display: fresh I2C read (not ISR-averaged data used for avg_datalog.csv).
+  readSensors();
   SensorData d = getSensorData();
 
   // ----------------------------------------------------------

@@ -23,4 +23,13 @@ constexpr uint8_t kTftSclkPin = 13;
 constexpr unsigned long kLogIntervalMs = 60000UL;
 constexpr unsigned long kDashboardRefreshMs = 1000UL;
 
+// Hardware timer (TC4 on SAMD21): one I2C sample request every 2 s.
+constexpr unsigned long kSensorSampleMs = 2000UL;
+// Average window: one sample every 2 s → one averaged row every 2 s.
+constexpr unsigned long kSensorAverageMs = 2000UL;
+constexpr uint8_t kSamplesPerAverageWindow =
+    static_cast<uint8_t>(kSensorAverageMs / kSensorSampleMs);
+// TC4 runs at this base rate; ISR divides down to kSensorSampleMs (2 s).
+constexpr unsigned long kTc4BasePeriodMs = 10UL;
+
 #endif

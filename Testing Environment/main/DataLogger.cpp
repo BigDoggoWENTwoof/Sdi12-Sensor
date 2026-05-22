@@ -1,59 +1,37 @@
 #include "DataLogger.h"
 #include "HardwareConfig.h"
+#include "SdCard.h"
 #include "SensorReading.h"
 
 #include <Bounce2.h>
-#include <RTClib.h>
 #include <SdFat.h>
 
-//Everything inside is private to THIS .cpp file only.
+// Periodic / manual snapshots go to datalog.csv (not avg_datalog.csv).
 namespace {
-
-SdFs sd;
-FsFile file;
-
-SoftSpiDriver<kSoftMisoPin, kSoftMosiPin, kSoftSckPin> softSpi;
-#define SD_CONFIG SdSpiConfig(kSdCsPin, SHARED_SPI, SD_SCK_MHZ(4), &softSpi)
-
-RTC_DS1307 rtc;
 
 const char* logFileName = "datalog.csv";
 
 unsigned long lastLogTimeMs = 0;
 
-bool sdOk = false;
-bool rtcOk = false;
-
 Bounce debouncerManual;
 Bounce debouncerClear;
 
-void formatTimestamp(char* out, size_t outLen) {
-  if (rtcOk) {
-    DateTime now = rtc.now();
-    snprintf(out, outLen, "%04d-%02d-%02d %02d:%02d:%02d",
-             now.year(), now.month(), now.day(),
-             now.hour(), now.minute(), now.second());
-  } else {
-    unsigned long sec = millis() / 1000UL;
-    snprintf(out, outLen, "uptime_%lu", sec);
-  }
-}
-
 void appendCsvHeaderIfNew() {
-  if (!sdOk) {
+  if (!sdCardIsReady()) {
     return;
   }
+  SdFs& sd = sdCardFs();
   if (sd.exists(logFileName)) {
     return;
   }
-  file = sd.open(logFileName, FILE_WRITE);
+  FsFile file = sd.open(logFileName, FILE_WRITE);
   if (!file) {
     Serial.println(F("[Log] ERROR: Could not create CSV."));
     return;
   }
   file.println(F("Timestamp,Temperature_C,Humidity_pct,Pressure_hPa,Lux,Source"));
   file.close();
-  Serial.println(F("[Log] CSV header created."));
+  Serial.println(F("[Log] datalog.csv header created."));
 }
 
 void printLogToSerial(const char* source, const char* timestamp, const SensorData& d) {
@@ -74,21 +52,20 @@ void printLogToSerial(const char* source, const char* timestamp, const SensorDat
 
 void logDataInternal(const char* source) {
   char timestamp[24];
-  formatTimestamp(timestamp, sizeof(timestamp));
+  rtcFormatTimestamp(timestamp, sizeof(timestamp));
 
   readSensors();
   SensorData d = getSensorData();
 
-  if (!sdOk) {
+  if (!sdCardIsReady()) {
     Serial.print(F("[Log] SD unavailable — serial only: "));
     printLogToSerial(source, timestamp, d);
     return;
   }
 
-  file = sd.open(logFileName, FILE_WRITE);
+  FsFile file = sdCardFs().open(logFileName, FILE_WRITE);
   if (!file) {
     Serial.println(F("[Log] SD write failed (card removed?)."));
-    sdOk = false;
     printLogToSerial(source, timestamp, d);
     return;
   }
@@ -124,11 +101,12 @@ void logDataInternal(const char* source) {
 }
 
 void clearSdLogFile() {
-  if (!sdOk) {
+  if (!sdCardIsReady()) {
     Serial.println(F("[Log] SD unavailable — cannot clear."));
     return;
   }
-  Serial.println(F("[Log] Clearing log file..."));
+  SdFs& sd = sdCardFs();
+  Serial.println(F("[Log] Clearing datalog.csv..."));
   if (sd.exists(logFileName)) {
     if (!sd.remove(logFileName)) {
       Serial.println(F("[Log] ERROR: Could not delete file."));
@@ -136,7 +114,7 @@ void clearSdLogFile() {
     }
   }
   appendCsvHeaderIfNew();
-  Serial.println(F("[Log] Log file reset."));
+  Serial.println(F("[Log] datalog.csv reset."));
 }
 
 }  // namespace
@@ -150,24 +128,9 @@ void dataLoggerInit() {
   debouncerClear.attach(kBtnClearSdPin);
   debouncerClear.interval(50);
 
-  rtcOk = rtc.begin();
-  if (!rtcOk) {
-    Serial.println(F("[Log] WARN: RTC not found — timestamps use uptime."));
-  } else if (!rtc.isrunning()) {
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-    Serial.println(F("[Log] RTC stopped — time set from compile time."));
-  }
-
-  sdOk = sd.begin(SD_CONFIG);
-  if (!sdOk) {
-    Serial.println(F("[Log] WARN: SD card init failed — logging disabled, rest of system runs."));
-  } else {
-    appendCsvHeaderIfNew();
-    Serial.println(F("[Log] SD card ready."));
-  }
-
+  appendCsvHeaderIfNew();
   lastLogTimeMs = millis();
-  Serial.println(F("[Log] Buttons active (manual log / clear)."));
+  Serial.println(F("[Log] Buttons active (manual log / clear datalog.csv)."));
 }
 
 void dataLoggerUpdate() {
@@ -182,7 +145,7 @@ void dataLoggerUpdate() {
 
   if (debouncerManual.fell()) {
     logDataInternal("Manual");
-    if (sdOk) {
+    if (sdCardIsReady()) {
       Serial.println(F("[Log] Manual entry saved to SD."));
     }
   }
