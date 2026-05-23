@@ -51,6 +51,61 @@ def build_pdf():
         "This document explains how main.ino and all modules work together.",
     )
 
+    section(pdf, "0. Where to START reading the code")
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.multi_cell(pdf.epw, 5, "Follow this order the first time you open the project:")
+    pdf.ln(1)
+    code(
+        pdf,
+        """
+  START --> main.ino (setup + loop order)
+            |
+            v
+         HardwareConfig.h (pins + all timing constants)
+            |
+            v
+         SensorReading.h / .cpp (BME280 + BH1750, readSensors)
+            |
+            +-------- choose your branch --------+
+            |              |          |         |
+            v              v          v         v
+      Dashboard.cpp   SdCard.cpp  SensorSampler  sdi12.cpp
+      (TFT real-time)      |       .cpp (2s TC4)  (SDI-12)
+                           |
+                      +----+----+
+                      v         v
+                 DataLogger   AvgDataLogger
+                 datalog.csv  avg_datalog.csv
+        """,
+    )
+    pdf.ln(1)
+    steps = [
+        ("1", "main.ino", "Only entry point - what runs and in what order"),
+        ("2", "HardwareConfig.h", "Pins and intervals (2s, 60s, 1s)"),
+        ("3", "SensorReading.cpp", "All sensors - every module uses this"),
+        ("4a", "Dashboard.cpp", "TFT display (real-time reads)"),
+        ("4b", "SdCard + DataLogger", "datalog.csv + buttons"),
+        ("4c", "SensorSampler + AvgDataLogger", "2s averages + avg_datalog.csv"),
+        ("4d", "sdi12.cpp", "SDI-12 commands M, D1, D2, R0"),
+    ]
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(10, 6, "Step", border=1)
+    pdf.cell(50, 6, "File", border=1)
+    pdf.cell(0, 6, "Why", border=1, ln=True)
+    pdf.set_font("Helvetica", "", 9)
+    for s, f, w in steps:
+        pdf.cell(10, 6, s, border=1)
+        pdf.cell(50, 6, f, border=1)
+        pdf.cell(0, 6, w, border=1, ln=True)
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "I", 9)
+    pdf.multi_cell(
+        pdf.epw,
+        5,
+        "Rule: Always read main.ino -> HardwareConfig.h -> SensorReading first. "
+        "Then open only the branch you need.",
+    )
+
     section(pdf, "1. Big picture (two separate sensor paths)")
     bullet(pdf, "REAL-TIME path: instant I2C reads for TFT, SDI-12, and datalog.csv")
     bullet(pdf, "AVERAGED path: TC4 timer every 2 s -> avg_datalog.csv only")

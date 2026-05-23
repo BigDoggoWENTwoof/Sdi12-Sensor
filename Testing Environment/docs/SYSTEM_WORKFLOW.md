@@ -3,6 +3,77 @@
 **Board:** Arduino Zero / MKR / SAMD21 (TC4 hardware timer)  
 **Project folder:** `Testing Environment/main/`
 
+**PDF version:** `docs/SYSTEM_WORKFLOW.pdf` (includes this reading-order chart)
+
+---
+
+## 0. Where to start reading (flowchart)
+
+Use this order the first time you open the project. Follow the arrows top → bottom, then pick a branch for the feature you care about.
+
+```mermaid
+flowchart TD
+  START(["START: Open main.ino"])
+  MAIN["1. main.ino<br/>setup order + loop order"]
+  CFG["2. HardwareConfig.h<br/>pins, 2s / 60s / 1s timings"]
+  SENS["3. SensorReading.h + .cpp<br/>BME280, BH1750, readSensors"]
+  LOOP{"4. What do you want<br/>to understand?"}
+
+  START --> MAIN
+  MAIN --> CFG
+  CFG --> SENS
+  SENS --> LOOP
+
+  LOOP -->|TFT screen| DASH["Dashboard.cpp<br/>real-time display"]
+  LOOP -->|SD logging| SDPATH["SdCard.cpp<br/>shared SD + RTC"]
+  SDPATH --> DLOG["DataLogger.cpp<br/>datalog.csv 60s"]
+  SDPATH --> ALOG["AvgDataLogger.cpp<br/>avg_datalog.csv 2s"]
+  ALOG --> SAMP["SensorSampler.cpp<br/>TC4 timer + averages"]
+  LOOP -->|SDI-12 host| SDI["sdi12.cpp<br/>commands M D1 D2 R0"]
+
+  DASH -.->|uses| SENS
+  DLOG -.->|uses| SENS
+  SAMP -.->|uses| SENS
+  SDI -.->|uses| SENS
+```
+
+### Reading order (numbered list)
+
+| Step | File | Why read it |
+|------|------|-------------|
+| **1** | `main.ino` | Only entry point — shows what runs and in what order |
+| **2** | `HardwareConfig.h` | All pin defines and millisecond constants in one place |
+| **3** | `SensorReading.h` → `SensorReading.cpp` | Core I2C sensors; every other module calls this |
+| **4a** | `Dashboard.cpp` | If you care about the TFT (real-time, not averages) |
+| **4b** | `SdCard.cpp` → `DataLogger.cpp` | If you care about `datalog.csv` and buttons |
+| **4c** | `SensorSampler.cpp` → `AvgDataLogger.cpp` | If you care about 2 s timer averages + `avg_datalog.csv` |
+| **4d** | `sdi12.cpp` | If you care about the SDI-12 slave protocol |
+
+### One-page ASCII chart (print-friendly)
+
+```
+                    +------------------+
+                    |  START: main.ino |
+                    +--------+---------+
+                             |
+              +--------------+--------------+
+              v              v              v
+     HardwareConfig.h   SensorReading.*    (see loop below)
+              |
+              +----------+----------+----------+----------+
+              |          |          |          |          |
+              v          v          v          v          v
+         Dashboard   SdCard.cpp  SensorSampler  sdi12.cpp
+         (TFT 1s)       |         (TC4 2s)     (Serial1)
+                         |
+                    +----+----+
+                    v         v
+              DataLogger  AvgDataLogger
+              datalog.csv avg_datalog.csv
+```
+
+**Rule of thumb:** Always read **`main.ino` → `HardwareConfig.h` → `SensorReading`** first. Only then open the branch for the feature you need.
+
 ---
 
 ## 1. Big picture: two sensor paths
