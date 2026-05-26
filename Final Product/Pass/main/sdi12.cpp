@@ -1,6 +1,6 @@
 #include "sdi12.h"
 #include "SensorReading.h"
-
+//shdskhdka
 #define SDI12_BAUD 1200
 #define TX_LOCKOUT_MS 50
 #define R0_STREAM_INTERVAL_MS 1000
