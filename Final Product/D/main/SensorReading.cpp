@@ -35,7 +35,7 @@ void readSensors() {
     bmeOK = true;
     sensorBuffer.temperature = bme.readTemperature();
     sensorBuffer.humidity    = bme.readHumidity();
-    sensorBuffer.pressure    = pres / 100.0;
+    sensorBuffer.pressure    = pres;
   }
 
   // ---- BH1750 ----

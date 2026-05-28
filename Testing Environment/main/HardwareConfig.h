@@ -31,5 +31,11 @@ constexpr uint8_t kSamplesPerAverageWindow =
     static_cast<uint8_t>(kSensorAverageMs / kSensorSampleMs);
 // TC4 runs at this base rate; ISR divides down to kSensorSampleMs (2 s).
 constexpr unsigned long kTc4BasePeriodMs = 10UL;
+// External activity LED pin (you set this to D9).
+constexpr uint8_t kIsrActivityLedPin = 9;
+// Set false if your external LED is wired active-low.
+constexpr bool kIsrActivityLedActiveHigh = true;
+// Visible pulse length on each 2 s sample event.
+constexpr unsigned long kIsrActivityLedPulseMs = 200UL;
 
 #endif
