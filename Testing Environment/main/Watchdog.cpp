@@ -11,9 +11,9 @@ constexpr uint8_t kWdtPeriod = WDTO_8S;  // Long timeout avoids false reset duri
 #endif
 }  // namespace
 
+// If previous reboot was watchdog-triggered, clear the flag and disable WDT first.
 void watchdogInit() {
 #if defined(ARDUINO_ARCH_AVR)
-  // If previous reboot was watchdog-triggered, clear the flag and disable WDT first.
   if ((MCUSR & _BV(WDRF)) != 0) {
     MCUSR &= ~_BV(WDRF);
     wdt_disable();
@@ -26,9 +26,11 @@ void watchdogInit() {
   Serial.println(F("[WDT] HW watchdog not configured for this MCU core."));
 #endif
 }
-
+// dawrfqfrq
 void watchdogKick() {
 #if defined(ARDUINO_ARCH_AVR)
   wdt_reset();  // Healthy heartbeat: prevent reset.
 #endif
 }
+
+// TEsting
