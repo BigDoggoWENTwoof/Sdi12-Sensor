@@ -6,9 +6,10 @@
 #include "AvgDataLogger.h"
 #include "Dashboard.h"
 
-#define DIRO_PIN 8   // pin 7 is TFT_DC
+#define DIRO_PIN 8
 #define MY_ADDRESS '0'
 
+// Initialise sensors, SD card, loggers, dashboard and SDI-12 communication
 void setup() {
   Serial.begin(9600);
 
@@ -25,8 +26,8 @@ void setup() {
   Serial.println(F("SDI-12 slave + ISR sampler + loggers + dashboard ready."));
 }
 
+// Continuously run sampler, SDI-12 handler, data loggers and dashboard
 void loop() {
-  // Drain hardware timer flags and run I2C reads (timing set by TC4, not loop speed).
   sensorSamplerService();
 
   sdi12Handle();
