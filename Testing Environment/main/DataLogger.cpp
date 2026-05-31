@@ -120,12 +120,12 @@ void clearSdLogFile() {
 }  // namespace
 
 void dataLoggerInit() {
-  pinMode(kBtnManualLogPin, INPUT_PULLUP);
-  pinMode(kBtnClearSdPin, INPUT_PULLUP);
+  pinMode(ManualDataLogToSDcardButton, INPUT_PULLUP);
+  pinMode(ClearSdButton, INPUT_PULLUP);
 
-  debouncerManual.attach(kBtnManualLogPin);
+  debouncerManual.attach(ManualDataLogToSDcardButton);
   debouncerManual.interval(50);
-  debouncerClear.attach(kBtnClearSdPin);
+  debouncerClear.attach(ClearSdButton);
   debouncerClear.interval(50);
 
   appendCsvHeaderIfNew();
@@ -135,7 +135,7 @@ void dataLoggerInit() {
 
 void dataLoggerUpdate() {
   unsigned long now = millis();
-  if (now - lastLogTimeMs >= kLogIntervalMs) {
+  if (now - lastLogTimeMs >= LogIntervalRate) {
     lastLogTimeMs = now;
     logDataInternal("Periodic");
   }

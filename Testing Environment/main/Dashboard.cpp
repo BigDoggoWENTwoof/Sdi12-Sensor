@@ -13,11 +13,11 @@ namespace {
 
 // Create TFT object
 Adafruit_ST7735 tft(
-  kTftCsPin,
-  kTftDcPin,
-  kTftMosiPin,
-  kTftSclkPin,
-  kTftRstPin
+  TftCsPin,
+  TftDcPin,
+  TftMosiPin,
+  TftSclkPin,
+  TftRstPin
 );
 
 // Store last screen refresh time
@@ -85,7 +85,7 @@ void dashboardUpdate() {
   // Refresh rate control
   // Prevents TFT from updating too fast
   // ----------------------------------------------------------
-  if (now - lastRefreshMs < kDashboardRefreshMs) {
+  if (now - lastRefreshMs < DashboardRefreshRate) {
     return;
   }
 

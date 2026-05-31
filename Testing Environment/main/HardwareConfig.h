@@ -3,39 +3,37 @@
 
 #include <Arduino.h>
 
-// SD card (soft SPI) — same wiring as project.ino
-constexpr uint8_t kSdCsPin = A3;
-constexpr uint8_t kSoftMisoPin = 12;
-constexpr uint8_t kSoftMosiPin = 11;
-constexpr uint8_t kSoftSckPin = 13;
+// SD card — same wiring as schematic in file SdCard.cpp
+constexpr uint8_t SdCsPin = A3;
+constexpr uint8_t SoftMisoPin = 12;
+constexpr uint8_t SoftMosiPin = 11;
+constexpr uint8_t SoftSckPin = 13;
 
-// Pushbuttons: active LOW with INPUT_PULLUP
-constexpr int kBtnManualLogPin = 2;
-constexpr int kBtnClearSdPin = 3;
+// Pushbuttons in file DataLogger.cpp
+constexpr int ManualDataLogToSDcardButton = 2;
+constexpr int ClearSdButton = 3;
 
-// ST7735 TFT (hardware SPI — shares MOSI/SCK with SD soft SPI)
-constexpr uint8_t kTftCsPin = 10;
-constexpr uint8_t kTftDcPin = 7;
-constexpr uint8_t kTftRstPin = 6;
-constexpr uint8_t kTftMosiPin = 11;
-constexpr uint8_t kTftSclkPin = 13;
+// ST7735 TFT in file Dashboard.cpp
+constexpr uint8_t TftCsPin = 10;
+constexpr uint8_t TftDcPin = 7;
+constexpr uint8_t TftRstPin = 6;
+constexpr uint8_t TftMosiPin = 11;
+constexpr uint8_t TftSclkPin = 13;
 
-constexpr unsigned long kLogIntervalMs = 60000UL;
-constexpr unsigned long kDashboardRefreshMs = 1000UL;
+// Logging interval (1 minute) in file DataLogger.cpp
+constexpr unsigned long LogIntervalRate = 60000UL;
+// Dashboard refresh interval (1 second) in file Dashboard.cpp
+constexpr unsigned long DashboardRefreshRate = 1000UL;
 
-// Arduino Due hardware timer: one I2C sample request every 2 s.
-constexpr unsigned long kSensorSampleMs = 2000UL;
-// Average window: one sample every 2 s → one averaged row every 2 s.
-constexpr unsigned long kSensorAverageMs = 2000UL;
-constexpr uint8_t kSamplesPerAverageWindow =
-    static_cast<uint8_t>(kSensorAverageMs / kSensorSampleMs);
-// HW timer ISR base tick (10 ms); ISR divides down to kSensorSampleMs (2 s).
-constexpr unsigned long kHwTimerBasePeriodMs = 10UL;
+// Sample the averaged sensor data every 2s in file SensorSampler.cpp
+constexpr unsigned long SensorSamplerInMs = 2000UL;   
+constexpr uint8_t NumberOfSamplePerAvg = 10;    // average of 10 samples
+
+
 // External activity LED pin (you set this to D9).
-constexpr uint8_t kIsrActivityLedPin = 9;
-// Set false if your external LED is wired active-low.
-constexpr bool kIsrActivityLedActiveHigh = true;
+constexpr uint8_t LedPin = 9;
+
 // Visible pulse length on each 2 s sample event.
-constexpr unsigned long kIsrActivityLedPulseMs = 200UL;
+constexpr unsigned long LedPulseMs = 200UL;
 
 #endif
