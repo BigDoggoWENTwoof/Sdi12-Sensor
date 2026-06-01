@@ -1,5 +1,5 @@
 #include "AvgDataLogger.h"  // init/update API for average CSV logging
-#include "HardwareConfig.h"  // kSamplesPerAverageWindow (1 sample per 2 s row)
+#include "HardwareConfig.h"  // NumberOfSamplePerAvg (1 sample per 2 s row)
 #include "SdCard.h"  // sdCardIsReady, sdCardFs, rtcFormatTimestamp
 #include "SensorSampler.h"  // getAveragedSensorData, isAveragedSensorDataReady, acknowledge
 #include "SensorReading.h"  // isBme280Ok, isBh1750Ok
@@ -56,7 +56,7 @@ void writeAvgRow(const char* source) {  // Append one averaged row to SD or Seri
 
   if (!sdCardIsReady()) {  // SD unavailable — print only
     Serial.print(F("[AvgLog] SD unavailable — serial only: "));  // Inform user
-    printAvgRowToSerial(timestamp, d, kSamplesPerAverageWindow);  // Echo row on Serial
+    printAvgRowToSerial(timestamp, d, NumberOfSamplePerAvg);  // Echo row on Serial
     return;  // Skip file write
   }
 
@@ -64,7 +64,7 @@ void writeAvgRow(const char* source) {  // Append one averaged row to SD or Seri
   FsFile file = sd.open(kAvgLogFileName, FILE_WRITE);  // Open for append at end of file
   if (!file) {  // Card removed or write error
     Serial.println(F("[AvgLog] SD write failed."));  // Report failure
-    printAvgRowToSerial(timestamp, d, kSamplesPerAverageWindow);  // Still show on Serial
+    printAvgRowToSerial(timestamp, d, NumberOfSamplePerAvg);  // Still show on Serial
     return;  // Exit without closing (file not open)
   }
 
@@ -86,12 +86,12 @@ void writeAvgRow(const char* source) {  // Append one averaged row to SD or Seri
     file.print(d.lux, 2);  // Two decimal places
   }
   file.print(',');  // Delimiter
-  file.print(kSamplesPerAverageWindow);  // Column 6: sample count (1 per 2 s row)
+  file.print(NumberOfSamplePerAvg);  // Column 6: sample count (1 per 2 s row)
   file.print(',');  // Delimiter
   file.println(source);  // Column 7: source tag e.g. ISR_Avg
 
   file.close();  // Commit row to SD card
-  printAvgRowToSerial(timestamp, d, kSamplesPerAverageWindow);  // Mirror row to Serial Monitor
+  printAvgRowToSerial(timestamp, d, NumberOfSamplePerAvg);  // Mirror row to Serial Monitor
 }
 
 }  // namespace

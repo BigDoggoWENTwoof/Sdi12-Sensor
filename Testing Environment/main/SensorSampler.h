@@ -1,14 +1,21 @@
-#ifndef SENSORSAMPLER_H  // Include guard start
-#define SENSORSAMPLER_H  // Define guard macro
+#ifndef SENSORSAMPLER_H  
+#define SENSORSAMPLER_H  
 
-#include "SensorReading.h"  // SensorData struct and readSensors()
+#include "SensorReading.h"  
 
-// TC4 ISR requests a sample every kSensorSampleMs (2 s); call sensorSamplerService() from loop().
-void sensorSamplerInit();  // Start hardware timer (SAMD) or millis fallback
-void sensorSamplerService();  // Process pending ISR ticks: read sensors and build averages
+static void setActivityLed(bool state);
+static void onSampleTimerISR();
+static void serviceActivityLed();
+static void accumulateOneSample();
+static void finalizeAverageWindow();
+static void pulseActivityLed();
+static void printAverageReady();
 
-SensorData getAveragedSensorData();  // Last completed 2 s average (for logging only)
-bool isAveragedSensorDataReady();  // True when a new average is ready to log
-void sensorSamplerAcknowledgeAverage();  // Clear ready flag after AvgDataLogger writes CSV row
+void sensorSamplerInit();  
+void sensorSamplerService();  
 
-#endif  // Include guard end
+SensorData getAveragedSensorData();  
+bool isAveragedSensorDataReady();  
+void sensorSamplerAcknowledgeAverage();  
+
+#endif  

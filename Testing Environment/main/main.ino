@@ -5,11 +5,18 @@
 #include "DataLogger.h"
 #include "AvgDataLogger.h"
 #include "Dashboard.h"
+#include "Watchdog.h"
 
-#define DIRO_PIN 8   // pin 7 is TFT_DC
+#define DIRO_PIN 8
 #define MY_ADDRESS '0'
 
-void setup() {
+// Prevent Arduino core from disabling watchdog
+void watchdogSetup(void)
+{
+}
+
+void setup()
+{
   Serial.begin(9600);
 
   sensorsInit();
@@ -22,15 +29,30 @@ void setup() {
 
   readSensors();
 
-  Serial.println(F("SDI-12 slave + ISR sampler + loggers + dashboard ready."));
+  watchdogInit();
+
+  Serial.println(F("SDI-12 Communication + ISR sampler + loggers + dashboard ready."));
 }
 
-void loop() {
-  // Drain hardware timer flags and run I2C reads (timing set by TC4, not loop speed).
+void loop()
+{
+  watchdogKick();
+
   sensorSamplerService();
+  watchdogKick();
+
+  watchdogCheckSensors();
+  watchdogKick();
 
   sdi12Handle();
+  watchdogKick();
+
   avgDataLoggerUpdate();
+  watchdogKick();
+
   dataLoggerUpdate();
+  watchdogKick();
+
   dashboardUpdate();
+  watchdogKick();
 }

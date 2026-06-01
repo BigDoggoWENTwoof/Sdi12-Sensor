@@ -29,10 +29,12 @@ void readSensors() {
   // ---- BME280 ----
   float pres = bme.readPressure();
 
-  if (pres < 0) {
+  if (isnan(pres) || pres <= 0) {
     bmeOK = false;
-  } else {
+  }
+  else {
     bmeOK = true;
+
     sensorBuffer.temperature = bme.readTemperature();
     sensorBuffer.humidity    = bme.readHumidity();
     sensorBuffer.pressure    = pres / 100.0;
@@ -41,9 +43,10 @@ void readSensors() {
   // ---- BH1750 ----
   float lux = lightMeter.readLightLevel();
 
-  if (lux < 0) {   // error condition
+  if (isnan(lux) || lux < 0) {
     lightOK = false;
-  } else {
+  }
+  else {
     lightOK = true;
     sensorBuffer.lux = lux;
   }

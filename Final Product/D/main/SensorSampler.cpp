@@ -1,12 +1,11 @@
 #include "SensorSampler.h"  // Public sampler API declarations
 #include "HardwareConfig.h"  // kSensorSampleMs, kSensorAverageMs, kSamplesPerAverageWindow
 
-// SAMD21: TC4 base tick ~10 ms; ISR divider → 2 s sample. I2C runs in sensorSamplerService().
-#if defined(ARDUINO_ARCH_SAMD)  // Compile this block only on Arduino Zero / MKR / SAMD boards
+#if defined(ARDUINO_ARCH_SAMD)
 
 constexpr uint16_t kTc4PeriodTicks = 469;  // Compare value for ~10 ms at 48 MHz / 1024 prescale
-constexpr uint16_t kIsrTicksPerSample =  // How many TC4 overflows make one 2 s sample request
-    static_cast<uint16_t>(kSensorSampleMs / kTc4BasePeriodMs);
+// How many TC4 overflows make one 2 s sample request
+constexpr uint16_t kIsrTicksPerSample =  static_cast<uint16_t>(kSensorSampleMs / kTc4BasePeriodMs);
 
 static uint16_t isrTickDivider = 0;  // Counts 10 ms ISR ticks until kIsrTicksPerSample
 
@@ -23,9 +22,43 @@ static uint16_t luxSampleCount = 0;  // Number of valid BH1750 samples in curren
 
 static SensorData avgBuffer;  // Holds last completed average (for avg_datalog.csv)
 static volatile bool newAverageAvailable = false;  // Set when a new average is ready to log
+static volatile uint16_t ledPulseTicksRemaining = 0;  // ISR-managed LED pulse duration counter
+
+static inline void writeActivityLed(bool on) {  // Map logical ON/OFF to physical pin level
+  const uint8_t level = (on == kIsrActivityLedActiveHigh) ? HIGH : LOW;
+  digitalWrite(kIsrActivityLedPin, level);
+}
+
+static inline void startActivityLedPulse() {  // Start/refresh one LED pulse from non-ISR code
+  noInterrupts();
+  writeActivityLed(true);
+  ledPulseTicksRemaining = static_cast<uint16_t>(kIsrActivityLedPulseMs / kTc4BasePeriodMs);
+  if (ledPulseTicksRemaining == 0) {
+    ledPulseTicksRemaining = 1;
+  }
+  interrupts();
+}
+
+static void printAverageReady() {  // Visible serial notification each completed average
+  Serial.print(F("[Sampler] AVG ready T="));
+  Serial.print(avgBuffer.temperature, 2);
+  Serial.print(F("C H="));
+  Serial.print(avgBuffer.humidity, 2);
+  Serial.print(F("% P="));
+  Serial.print(avgBuffer.pressure, 2);
+  Serial.print(F("hPa L="));
+  Serial.print(avgBuffer.lux, 2);
+  Serial.println(F("lx"));
+}
 
 void TC4_Handler() {  // Hardware interrupt: TC4 overflow (~10 ms base tick)
   if (TC4->COUNT16.INTFLAG.bit.OVF && TC4->COUNT16.INTENSET.bit.OVF) {  // Overflow interrupt fired
+    if (ledPulseTicksRemaining > 0) {  // Keep LED ON while pulse time remains
+      ledPulseTicksRemaining--;
+      if (ledPulseTicksRemaining == 0) {
+        writeActivityLed(false);  // End pulse: LED OFF
+      }
+    }
     isrTickDivider++;  // Count 10 ms ticks toward 2 s interval
     if (isrTickDivider >= kIsrTicksPerSample) {  // 200 x 10 ms = 2000 ms
       isrTickDivider = 0;  // Reset divider for next 2 s period
@@ -98,6 +131,10 @@ static void finalizeAverageWindow() {  // Compute mean over samplesInCurrentWind
 
   avgBuffer.ready = (bmeSampleCount > 0 || luxSampleCount > 0);  // Mark average struct valid
   newAverageAvailable = avgBuffer.ready;  // Tell AvgDataLogger a new row is available
+  if (avgBuffer.ready) {  // Blink activity LED when an averaged sample is produced
+    startActivityLedPulse();
+    printAverageReady();
+  }
 
   tempSum = 0.0f;  // Reset sums for next 2 s window
   humidSum = 0.0f;  // Reset humidity sum
@@ -108,17 +145,20 @@ static void finalizeAverageWindow() {  // Compute mean over samplesInCurrentWind
 }
 
 void sensorSamplerInit() {  // Call from setup() after sensorsInit()
+  pinMode(kIsrActivityLedPin, OUTPUT);  // Configure ISR activity LED as output
+  writeActivityLed(false);  // Start LED in OFF state
   avgBuffer.ready = false;  // No average produced yet
   newAverageAvailable = false;  // Logger should not write until first window completes
   g_sampleTicksPending = 0;  // No pending ISR ticks at start
   samplesInCurrentWindow = 0;  // Start new window at sample zero
   isrTickDivider = 0;  // Reset 10 ms → 2 s divider
+  ledPulseTicksRemaining = 0;  // No pulse active at startup
 
   setupTc4SampleTimer();  // Start TC4 base timer on SAMD21
   Serial.print(F("[Sampler] TC4 "));  // Status message part 1
   Serial.print(kSensorSampleMs);  // Print sample interval (2000 ms)
   Serial.print(F(" ms tick, "));  // Status message part 2
-  Serial.print(kSensorAverageMs);  // Print average window (100)
+  Serial.print(kSensorAverageMs);  // Print average window
   Serial.println(F(" ms average window."));  // Status message part 3 + newline
 }
 
@@ -150,75 +190,127 @@ void sensorSamplerAcknowledgeAverage() {  // Called after avg_datalog.csv row is
   newAverageAvailable = false;  // Allow detection of the next completed window
 }
 
-#else  // Non-SAMD boards: no TC4 — software timing fallback (less precise)
+#else
 
-static unsigned long lastSampleMs = 0;  // Last millis() when a sample was taken (fallback)
-static unsigned long windowStartMs = 0;  // Start of current average window (fallback)
+// Non-SAMD build: software-timed sampler that mirrors SAMD behavior.
+static SensorData avgBuffer;
+static volatile bool newAverageAvailable = false;
+static float tempSum = 0.0f;
+static float humidSum = 0.0f;
+static float pressSum = 0.0f;
+static float luxSum = 0.0f;
+static uint16_t bmeSampleCount = 0;
+static uint16_t luxSampleCount = 0;
+static uint8_t samplesInCurrentWindow = 0;
+static unsigned long lastSampleMs = 0;
+static unsigned long ledPulseOffAtMs = 0;
 
-static float tempSum = 0.0f;  // Running temperature sum (fallback path)
-static float humidSum = 0.0f;  // Running humidity sum (fallback path)
-static float pressSum = 0.0f;  // Running pressure sum (fallback path)
-static float luxSum = 0.0f;  // Running lux sum (fallback path)
-static uint16_t bmeSampleCount = 0;  // BME samples in window (fallback)
-static uint16_t luxSampleCount = 0;  // Lux samples in window (fallback)
-static SensorData avgBuffer;  // Last average (fallback)
-static volatile bool newAverageAvailable = false;  // New average flag (fallback)
-
-void sensorSamplerInit() {  // Fallback init when ARDUINO_ARCH_SAMD is not defined
-  Serial.println(F("[Sampler] WARN: no HW timer — using millis() fallback."));  // Warn on Serial
-  lastSampleMs = millis();  // Initialize sample timer
-  windowStartMs = lastSampleMs;  // Initialize window timer
-  avgBuffer.ready = false;  // No average yet
-  newAverageAvailable = false;  // Nothing to log yet
+static inline void writeActivityLed(bool on) {
+  const uint8_t level = (on == kIsrActivityLedActiveHigh) ? HIGH : LOW;
+  digitalWrite(kIsrActivityLedPin, level);
 }
 
-void sensorSamplerService() {  // Fallback service using millis() instead of TC4
-  const unsigned long now = millis();  // Current time for interval checks
+static void startActivityLedPulse() {
+  writeActivityLed(true);
+  ledPulseOffAtMs = millis() + kIsrActivityLedPulseMs;
+}
 
-  if (now - lastSampleMs >= kSensorSampleMs) {  // Roughly every 2 s
-    lastSampleMs = now;  // Update last sample time
-    readSensors();  // I2C read
-    const SensorData sample = getSensorData();  // Get instantaneous values
-    if (isBme280Ok()) {  // Accumulate BME if OK
-      tempSum += sample.temperature;  // Add temperature
-      humidSum += sample.humidity;  // Add humidity
-      pressSum += sample.pressure;  // Add pressure
-      bmeSampleCount++;  // Increment BME count
-    }
-    if (isBh1750Ok()) {  // Accumulate lux if OK
-      luxSum += sample.lux;  // Add lux
-      luxSampleCount++;  // Increment lux count
-    }
+static void printAverageReady() {
+  Serial.print(F("[Sampler] AVG ready T="));
+  Serial.print(avgBuffer.temperature, 2);
+  Serial.print(F("C H="));
+  Serial.print(avgBuffer.humidity, 2);
+  Serial.print(F("% P="));
+  Serial.print(avgBuffer.pressure, 2);
+  Serial.print(F("hPa L="));
+  Serial.print(avgBuffer.lux, 2);
+  Serial.println(F("lx"));
+}
+
+static void accumulateOneSample() {
+  readSensors();
+  const SensorData sample = getSensorData();
+  if (isBme280Ok()) {
+    tempSum += sample.temperature;
+    humidSum += sample.humidity;
+    pressSum += sample.pressure;
+    bmeSampleCount++;
   }
-
-  if (now - windowStartMs >= kSensorAverageMs) {  // Roughly every 2 s
-    windowStartMs = now;  // Start next window
-    if (bmeSampleCount > 0) {  // Finalize BME average if any samples
-      const float n = static_cast<float>(bmeSampleCount);  // Sample count as float
-      avgBuffer.temperature = tempSum / n;  // Mean temperature
-      avgBuffer.humidity = humidSum / n;  // Mean humidity
-      avgBuffer.pressure = pressSum / n;  // Mean pressure
-    }
-    if (luxSampleCount > 0) {  // Finalize lux average if any samples
-      avgBuffer.lux = luxSum / static_cast<float>(luxSampleCount);  // Mean lux
-    }
-    avgBuffer.ready = (bmeSampleCount > 0 || luxSampleCount > 0);  // Valid if any channel
-    newAverageAvailable = avgBuffer.ready;  // Signal logger
-    tempSum = humidSum = pressSum = luxSum = 0.0f;  // Clear sums
-    bmeSampleCount = luxSampleCount = 0;  // Clear counts
+  if (isBh1750Ok()) {
+    luxSum += sample.lux;
+    luxSampleCount++;
   }
 }
 
-SensorData getAveragedSensorData() {  // Fallback: return last average
-  return avgBuffer;  // Copy of average struct
+static void finalizeAverageWindow() {
+  if (bmeSampleCount > 0) {
+    const float n = static_cast<float>(bmeSampleCount);
+    avgBuffer.temperature = tempSum / n;
+    avgBuffer.humidity = humidSum / n;
+    avgBuffer.pressure = pressSum / n;
+  }
+  if (luxSampleCount > 0) {
+    avgBuffer.lux = luxSum / static_cast<float>(luxSampleCount);
+  }
+
+  avgBuffer.ready = (bmeSampleCount > 0 || luxSampleCount > 0);
+  newAverageAvailable = avgBuffer.ready;
+  if (avgBuffer.ready) {
+    startActivityLedPulse();
+    printAverageReady();
+  }
+
+  tempSum = 0.0f;
+  humidSum = 0.0f;
+  pressSum = 0.0f;
+  luxSum = 0.0f;
+  bmeSampleCount = 0;
+  luxSampleCount = 0;
 }
 
-bool isAveragedSensorDataReady() {  // Fallback: ready flag
-  return newAverageAvailable;  // True when new row should be logged
+void sensorSamplerInit() {
+  pinMode(kIsrActivityLedPin, OUTPUT);
+  writeActivityLed(false);
+  avgBuffer.ready = false;
+  newAverageAvailable = false;
+  samplesInCurrentWindow = 0;
+  tempSum = humidSum = pressSum = luxSum = 0.0f;
+  bmeSampleCount = luxSampleCount = 0;
+  lastSampleMs = millis();
+  ledPulseOffAtMs = 0;
+  Serial.println(F("[Sampler] SW timing active (non-SAMD core)."));
 }
 
-void sensorSamplerAcknowledgeAverage() {  // Fallback: clear ready after log
-  newAverageAvailable = false;  // Clear flag
+void sensorSamplerService() {
+  const unsigned long now = millis();
+
+  if (ledPulseOffAtMs != 0 && static_cast<long>(now - ledPulseOffAtMs) >= 0) {
+    writeActivityLed(false);
+    ledPulseOffAtMs = 0;
+  }
+
+  if (static_cast<unsigned long>(now - lastSampleMs) >= kSensorSampleMs) {
+    lastSampleMs += kSensorSampleMs;
+    accumulateOneSample();
+    samplesInCurrentWindow++;
+
+    if (samplesInCurrentWindow >= kSamplesPerAverageWindow) {
+      finalizeAverageWindow();
+      samplesInCurrentWindow = 0;
+    }
+  }
 }
 
-#endif  // End ARDUINO_ARCH_SAMD vs fallback
+SensorData getAveragedSensorData() {
+  return avgBuffer;
+}
+
+bool isAveragedSensorDataReady() {
+  return newAverageAvailable;
+}
+
+void sensorSamplerAcknowledgeAverage() {
+  newAverageAvailable = false;
+}
+
+#endif

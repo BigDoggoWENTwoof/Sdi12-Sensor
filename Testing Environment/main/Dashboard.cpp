@@ -10,11 +10,11 @@
 // ============================================================
 namespace {
 Adafruit_ST7735 tft(
-  kTftCsPin,
-  kTftDcPin,
-  kTftMosiPin,
-  kTftSclkPin,
-  kTftRstPin
+  TftCsPin,
+  TftDcPin,
+  TftMosiPin,
+  TftSclkPin,
+  TftRstPin
 );
 
 unsigned long lastRefreshMs = 0;
