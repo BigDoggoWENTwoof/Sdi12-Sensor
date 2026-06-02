@@ -9,6 +9,8 @@ bool lightOK = false;
 
 static SensorData sensorBuffer;
 
+
+// Sets up the I2C bus and checks if the BME280 and BH1750 sensors are connected.
 void sensorsInit() {
   Wire.begin();
 
@@ -25,8 +27,10 @@ void sensorsInit() {
   sensorBuffer.ready = false;
 }
 
+
+// Reads data from the BME280 and BH1750 sensors and stores the latest values in sensorBuffer.
 void readSensors() {
-  // ---- BME280 ----
+
   float pres = bme.readPressure();
 
   if (isnan(pres) || pres <= 0) {
@@ -58,10 +62,12 @@ void readSensors() {
 
 }
 
-
+// Returns the latest stored sensor readings from sensorBuffer.
 SensorData getSensorData() {
   return sensorBuffer;
 }
+
+// Counts how many sensor values are currently available from the working sensors.
 
 int getParameterCount() {
   int count = 0;
@@ -77,10 +83,14 @@ int getParameterCount() {
   return count;
 }
 
+// Returns true if the BME280 temperature, humidity, and pressure sensor is working.
+
 bool isBme280Ok() {
   return bmeOK;
 }
 
+
+// Returns true if the BH1750 light sensor is working.
 bool isBh1750Ok() {
   return lightOK;
 }
