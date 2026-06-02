@@ -6,7 +6,7 @@
 #include <Bounce2.h>
 #include <SdFat.h>
 
-// Periodic / manual snapshots go to datalog.csv (not avg_datalog.csv).
+
 namespace {
 
 const char* logFileName = "datalog.csv";
