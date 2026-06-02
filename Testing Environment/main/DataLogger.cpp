@@ -117,7 +117,7 @@ void clearSdLogFile() {
   Serial.println(F("[Log] datalog.csv reset."));
 }
 
-}  // namespace
+}  
 
 void dataLoggerInit() {
   pinMode(kBtnManualLogPin, INPUT_PULLUP);
